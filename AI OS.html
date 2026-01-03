@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>JS OS Prototype</title>
+    <style>
+        :root {
+            --taskbar-bg: rgba(20, 20, 20, 0.9);
+            --win-bg: #f0f0f0;
+            --accent: #0078d7;
+        }
+
+        body, html {
+            margin: 0; padding: 0; height: 100%; overflow: hidden;
+            font-family: 'Segoe UI', sans-serif;
+            background: url('https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1920&q=80') center/cover;
+        }
+
+        /* Рабочий стол */
+        #desktop {
+            width: 100%; height: calc(100% - 40px);
+            position: relative;
+        }
+
+        .shortcut {
+            width: 80px; text-align: center; color: white;
+            cursor: pointer; position: absolute; padding: 10px;
+            text-shadow: 1px 1px 3px black;
+        }
+        .shortcut img { width: 50px; display: block; margin: 0 auto 5px; }
+
+        /* Окна */
+        .window {
+            position: absolute; width: 400px; height: 300px;
+            background: var(--win-bg); border-radius: 5px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            display: flex; flex-direction: column; min-width: 200px; min-height: 150px;
+        }
+
+        .win-header {
+            background: #eee; padding: 10px; cursor: move;
+            display: flex; justify-content: space-between; border-radius: 5px 5px 0 0;
+        }
+
+        .win-content { flex: 1; padding: 10px; overflow: auto; }
+        .win-close { cursor: pointer; color: red; font-weight: bold; }
+
+        /* Панель задач */
+        #taskbar {
+            position: fixed; bottom: 0; width: 100%; height: 40px;
+            background: var(--taskbar-bg); display: flex; align-items: center; z-index: 1000;
+        }
+
+        #start-btn {
+            background: var(--accent); color: white; border: none;
+            height: 100%; padding: 0 20px; cursor: pointer;
+        }
+
+        /* Приложения */
+        textarea { width: 100%; height: 90%; border: none; resize: none; outline: none; }
+        canvas { background: white; border: 1px solid #ccc; cursor: crosshair; }
+        iframe { width: 100%; height: 100%; border: none; }
+
+        #start-menu {
+            position: absolute; bottom: 40px; left: 0; width: 200px;
+            background: var(--taskbar-bg); color: white; display: none;
+            flex-direction: column; padding: 10px; border-top-right-radius: 10px;
+        }
+        .start-item { padding: 10px; cursor: pointer; border-bottom: 1px solid #333; }
+        .start-item:hover { background: var(--accent); }
+    </style>
+</head>
+<body>
+
+<div id="desktop">
+    <div class="shortcut" style="top:20px; left:20px;" onmousedown="dragShortcut(this, event)" ondblclick="openApp('notepad')">
+        <img src="https://cdn-icons-png.flaticon.com/512/3712/3712174.png">Блокнот
+    </div>
+    <div class="shortcut" style="top:120px; left:20px;" onmousedown="dragShortcut(this, event)" ondblclick="openApp('paint')">
+        <img src="https://cdn-icons-png.flaticon.com/512/10473/10473631.png">Paint
+    </div>
+    <div class="shortcut" style="top:220px; left:20px;" onmousedown="dragShortcut(this, event)" ondblclick="openApp('browser')">
+        <img src="https://cdn-icons-png.flaticon.com/512/888/888846.png">Браузер
+    </div>
+</div>
+
+<div id="start-menu">
+    <div class="start-item" onclick="openApp('notepad')">Блокнот</div>
+    <div class="start-item" onclick="openApp('paint')">Paint</div>
+    <div class="start-item" onclick="openApp('browser')">Браузер</div>
+</div>
+
+<div id="taskbar">
+    <button id="start-btn" onclick="toggleStart()">Пуск</button>
+    <div id="running-apps"></div>
+</div>
+
+<script>
+    let zIndex = 10;
+
+    // Переключение меню Пуск
+    function toggleStart() {
+        const menu = document.getElementById('start-menu');
+        menu.style.display = menu.style.display === 'flex' ? 'none' : 'flex';
+    }
+
+    // Открытие приложений
+    function openApp(type) {
+        toggleStart(); // закрыть меню
+        const id = 'win-' + Math.random().toString(36).substr(2, 9);
+        const win = document.createElement('div');
+        win.className = 'window';
+        win.id = id;
+        win.style.left = '100px';
+        win.style.top = '100px';
+        win.style.zIndex = ++zIndex;
+
+        let content = '';
+        let title = '';
+
+        if(type === 'notepad') {
+            title = 'Блокнот';
+            content = '<textarea placeholder="Пишите здесь..."></textarea>';
+        } else if(type === 'paint') {
+            title = 'Paint';
+            content = '<canvas id="canv-'+id+'" width="370" height="230"></canvas>';
+            setTimeout(() => initPaint('canv-'+id), 100);
+        } else if(type === 'browser') {
+            title = 'Браузер';
+            content = '<iframe src="https://www.bing.com"></iframe>';
+        }
+
+        win.innerHTML = `
+            <div class="win-header" onmousedown="dragWindow(this.parentElement, event)">
+                <span>${title}</span>
+                <span class="win-close" onclick="this.parentElement.parentElement.remove()">X</span>
+            </div>
+            <div class="win-content">${content}</div>
+        `;
+
+        document.getElementById('desktop').appendChild(win);
+    }
+
+    // Логика перетаскивания окон
+    function dragWindow(el, e) {
+        el.style.zIndex = ++zIndex;
+        let pos1 = 0, pos2 = 0, pos3 = e.clientX, pos4 = e.clientY;
+        document.onmousemove = (e) => {
+            pos1 = pos3 - e.clientX; pos2 = pos4 - e.clientY;
+            pos3 = e.clientX; pos4 = e.clientY;
+            el.style.top = (el.offsetTop - pos2) + "px";
+            el.style.left = (el.offsetLeft - pos1) + "px";
+        };
+        document.onmouseup = () => { document.onmousemove = null; };
+    }
+
+    // Логика перетаскивания ярлыков
+    function dragShortcut(el, e) {
+        let pos1 = 0, pos2 = 0, pos3 = e.clientX, pos4 = e.clientY;
+        document.onmousemove = (e) => {
+            pos1 = pos3 - e.clientX; pos2 = pos4 - e.clientY;
+            pos3 = e.clientX; pos4 = e.clientY;
+            el.style.top = (el.offsetTop - pos2) + "px";
+            el.style.left = (el.offsetLeft - pos1) + "px";
+        };
+        document.onmouseup = () => { document.onmousemove = null; };
+    }
+
+    // Мини-рисовалка для Paint
+    function initPaint(canvasId) {
+        const canvas = document.getElementById(canvasId);
+        const ctx = canvas.getContext('2d');
+        let drawing = false;
+        canvas.onmousedown = () => drawing = true;
+        canvas.onmouseup = () => { drawing = false; ctx.beginPath(); };
+        canvas.onmousemove = (e) => {
+            if (!drawing) return;
+            ctx.lineWidth = 2;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = 'black';
+            ctx.lineTo(e.offsetX, e.offsetY);
+            ctx.stroke();
+        };
+    }
+</script>
+
+</body>
+</html>
